@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+<title>SCANLINE — Barcode ⇄ Nummer</title>
+<meta name="theme-color" content="#1B1B18">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Scanline">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/JsBarcode/3.11.5/JsBarcode.all.min.js"></script>
+<style>
+  :root{
+    --paper:#F5F3EC;
+    --paper-dim:#EAE7DA;
+    --ink:#1B1B18;
+    --ink-soft:#4A473F;
+    --yellow:#FFC629;
+    --laser:#E1362C;
+    --line:#C9C4B5;
+    --ok:#2E6B44;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'Inter',sans-serif;
+    min-height:100vh;
+    display:flex;
+    justify-content:center;
+    padding:0 0 60px;
+  }
+  .app{
+    width:100%;
+    max-width:480px;
+    min-height:100vh;
+    background:var(--paper);
+    position:relative;
+    border-left:1px solid var(--line);
+    border-right:1px solid var(--line);
+  }
+
+  /* Header — label ticket header */
+  header{
+    padding:28px 22px 18px;
+    position:relative;
+    border-bottom:2px dashed var(--line);
+  }
+  .eyebrow{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    letter-spacing:.18em;
+    color:var(--ink-soft);
+    text-transform:uppercase;
+    display:flex;
+    justify-content:space-between;
+  }
+  h1{
+    font-family:'Archivo Black',sans-serif;
+    font-size:34px;
+    line-height:1;
+    margin:10px 0 6px;
+    letter-spacing:-.01em;
+  }
+  h1 span{color:var(--laser);}
+  .sub{
+    font-size:14px;
+    color:var(--ink-soft);
+    max-width:38ch;
+    line-height:1.4;
+  }
+  .barcode-rule{
+    height:14px;
+    margin-top:16px;
+    background-image:repeating-linear-gradient(90deg, var(--ink) 0px, var(--ink) 2px, transparent 2px, transparent 5px, var(--ink) 5px, var(--ink) 6px, transparent 6px, transparent 10px);
+    opacity:.85;
+  }
+
+  /* Tabs */
+  .tabs{
+    display:flex;
+    border-bottom:2px dashed var(--line);
+  }
+  .tab{
+    flex:1;
+    padding:16px 10px;
+    text-align:center;
+    font-family:'Barlow Condensed',sans-serif;
+    font-weight:700;
+    font-size:17px;
+    letter-spacing:.06em;
+    text-transform:uppercase;
+    background:none;
+    border:none;
+    color:var(--ink-soft);
+    cursor:pointer;
+    position:relative;
+    border-right:2px dashed var(--line);
+  }
+  .tab:last-child{border-right:none;}
+  .tab.active{color:var(--ink);background:var(--yellow);}
+  .tab .n{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    opacity:.6;
+    margin-right:6px;
+  }
+
+  .panel{padding:22px;display:none;}
+  .panel.active{display:block;}
+
+  /* Scan panel */
+  .scan-frame{
+    position:relative;
+    border:2px solid var(--ink);
+    border-radius:4px;
+    overflow:hidden;
+    background:#0d0d0b;
+    aspect-ratio:4/3;
+  }
+  #reader{width:100%;height:100%;}
+  #reader video{object-fit:cover;}
+  .laser{
+    position:absolute;
+    left:6%;right:6%;
+    height:2px;
+    background:var(--laser);
+    box-shadow:0 0 8px 2px rgba(225,54,44,.8);
+    top:50%;
+    animation:sweep 1.8s ease-in-out infinite;
+    pointer-events:none;
+    display:none;
+  }
+  .scan-frame.live .laser{display:block;}
+  @keyframes sweep{
+    0%,100%{top:18%;}
+    50%{top:82%;}
+  }
+  .scan-corner{
+    position:absolute;width:22px;height:22px;
+    border-color:var(--yellow);
+    pointer-events:none;
+  }
+  .scan-frame.live .scan-corner{border-style:solid;}
+  .c-tl{top:8px;left:8px;border-width:3px 0 0 3px;}
+  .c-tr{top:8px;right:8px;border-width:3px 3px 0 0;}
+  .c-bl{bottom:8px;left:8px;border-width:0 0 3px 3px;}
+  .c-br{bottom:8px;right:8px;border-width:0 3px 3px 0;}
+
+  .scan-idle{
+    height:100%;display:flex;align-items:center;justify-content:center;
+    color:#B9B6AA;font-family:'IBM Plex Mono',monospace;font-size:13px;text-align:center;padding:20px;
+  }
+
+  .btn{
+    font-family:'Barlow Condensed',sans-serif;
+    font-weight:700;
+    font-size:16px;
+    letter-spacing:.04em;
+    text-transform:uppercase;
+    padding:13px 18px;
+    border:2px solid var(--ink);
+    background:var(--ink);
+    color:var(--paper);
+    cursor:pointer;
+    border-radius:3px;
+    width:100%;
+    margin-top:14px;
+    transition:transform .08s ease;
+  }
+  .btn:active{transform:scale(.98);}
+  .btn.secondary{background:var(--paper);color:var(--ink);}
+  .btn.yellow{background:var(--yellow);color:var(--ink);}
+  .btn:disabled{opacity:.45;cursor:not-allowed;}
+
+  .cam-error{
+    margin-top:12px;font-size:13px;color:var(--laser);font-family:'IBM Plex Mono',monospace;
+    display:none;
+  }
+
+  /* Result ticket */
+  .ticket{
+    margin-top:20px;
+    border:2px solid var(--ink);
+    border-radius:4px;
+    background:#fff;
+    padding:18px;
+    position:relative;
+    display:none;
+  }
+  .ticket.show{display:block;}
+  .ticket-label{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10px;
+    letter-spacing:.15em;
+    text-transform:uppercase;
+    color:var(--ink-soft);
+  }
+  .ticket-number{
+    font-family:'IBM Plex Mono',monospace;
+    font-weight:700;
+    font-size:26px;
+    letter-spacing:.03em;
+    word-break:break-all;
+    margin:6px 0 4px;
+  }
+  .ticket-format{
+    font-size:12px;color:var(--ok);font-family:'IBM Plex Mono',monospace;
+  }
+  .ticket-actions{display:flex;gap:8px;margin-top:12px;}
+  .ticket-actions .btn{margin-top:0;font-size:13px;padding:10px;}
+
+  .history{margin-top:22px;}
+  .history-title{
+    font-family:'Barlow Condensed',sans-serif;
+    font-weight:600;font-size:14px;text-transform:uppercase;letter-spacing:.06em;
+    color:var(--ink-soft);border-bottom:1px solid var(--line);padding-bottom:6px;margin-bottom:8px;
+  }
+  .hist-item{
+    display:flex;justify-content:space-between;align-items:center;
+    font-family:'IBM Plex Mono',monospace;font-size:13px;
+    padding:8px 0;border-bottom:1px dotted var(--line);
+    gap:10px;
+  }
+  .hist-item .val{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .hist-item button{
+    background:none;border:none;color:var(--ink-soft);font-size:11px;text-transform:uppercase;cursor:pointer;
+    font-family:'IBM Plex Mono',monospace;letter-spacing:.05em;
+  }
+  .empty-hist{font-size:13px;color:var(--ink-soft);font-family:'IBM Plex Mono',monospace;padding:8px 0;}
+
+  /* Create panel */
+  label.field-label{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-soft);
+    display:block;margin-bottom:6px;
+  }
+  input[type="text"]{
+    width:100%;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:20px;
+    padding:12px 14px;
+    border:2px solid var(--ink);
+    border-radius:3px;
+    background:#fff;
+    color:var(--ink);
+    letter-spacing:.02em;
+  }
+  input[type="text"]:focus{outline:2px solid var(--yellow);outline-offset:1px;}
+  .format-row{
+    display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;
+  }
+  .fmt-chip{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12px;
+    padding:8px 12px;
+    border:2px solid var(--ink);
+    border-radius:20px;
+    background:var(--paper);
+    cursor:pointer;
+  }
+  .fmt-chip.active{background:var(--ink);color:var(--paper);}
+
+  .label-stock{
+    margin-top:22px;
+    background:#fff;
+    border-radius:4px;
+    padding:22px 16px 16px;
+    position:relative;
+    display:none;
+    box-shadow:0 1px 0 var(--line);
+  }
+  .label-stock.show{display:block;}
+  .label-stock::before,.label-stock::after{
+    content:"";
+    position:absolute;left:0;right:0;height:10px;
+    background-image:radial-gradient(circle 5px, var(--paper) 5px, transparent 5.5px);
+    background-size:20px 10px;
+    background-repeat:repeat-x;
+  }
+  .label-stock::before{top:-5px;}
+  .label-stock::after{bottom:-5px;background-position:10px 0;}
+  .label-stock canvas{width:100%;height:auto;display:block;}
+  .label-caption{
+    text-align:center;font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--ink-soft);margin-top:8px;
+  }
+  .gen-error{
+    margin-top:10px;font-size:13px;color:var(--laser);font-family:'IBM Plex Mono',monospace;display:none;
+  }
+  .toast{
+    position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);
+    background:var(--ink);color:var(--paper);
+    font-family:'IBM Plex Mono',monospace;font-size:13px;
+    padding:10px 18px;border-radius:4px;
+    opacity:0;transition:all .25s ease;pointer-events:none;
+    z-index:50;
+  }
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+  @media (prefers-reduced-motion: reduce){
+    .laser{animation:none;top:50%;}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="eyebrow"><span>SCANLINE / MODUL 01</span><span id="clock"></span></div>
+    <h1>Barcode <span>⇄</span> Nummer</h1>
+    <div class="sub">Scanne einen Barcode und erhalte sofort die Nummer — oder erzeuge aus einer Nummer einen druckbaren Barcode.</div>
+    <div class="barcode-rule"></div>
+  </header>
+
+  <div class="tabs">
+    <button class="tab active" data-tab="scan"><span class="n">01</span>Scannen</button>
+    <button class="tab" data-tab="create"><span class="n">02</span>Erstellen</button>
+  </div>
+
+  <!-- SCAN PANEL -->
+  <div class="panel active" id="panel-scan">
+    <div class="scan-frame" id="scanFrame">
+      <div id="reader"></div>
+      <div class="scan-idle" id="scanIdle">Kamera aus.<br>Tippe unten auf „Kamera starten“.</div>
+      <div class="laser"></div>
+      <div class="scan-corner c-tl"></div>
+      <div class="scan-corner c-tr"></div>
+      <div class="scan-corner c-bl"></div>
+      <div class="scan-corner c-br"></div>
+    </div>
+    <button class="btn" id="camToggle">Kamera starten</button>
+    <div class="cam-error" id="camError"></div>
+
+    <div class="ticket" id="scanTicket">
+      <div class="ticket-label">Erkannte Nummer</div>
+      <div class="ticket-number" id="scanValue">—</div>
+      <div class="ticket-format" id="scanFormat"></div>
+      <div class="ticket-actions">
+        <button class="btn secondary" id="copyScan">Kopieren</button>
+        <button class="btn yellow" id="toCreate">Als Barcode erneut erzeugen</button>
+      </div>
+    </div>
+
+    <div class="history">
+      <div class="history-title">Letzte Scans</div>
+      <div id="histList"><div class="empty-hist">Noch keine Scans in dieser Sitzung.</div></div>
+    </div>
+  </div>
+
+  <!-- CREATE PANEL -->
+  <div class="panel" id="panel-create">
+    <label class="field-label" for="numInput">Nummer / Text</label>
+    <input type="text" id="numInput" placeholder="z. B. 4006381333931" inputmode="text">
+
+    <div class="format-row" id="fmtRow">
+      <div class="fmt-chip active" data-fmt="CODE128">CODE 128</div>
+      <div class="fmt-chip" data-fmt="EAN13">EAN-13</div>
+      <div class="fmt-chip" data-fmt="EAN8">EAN-8</div>
+      <div class="fmt-chip" data-fmt="UPC">UPC-A</div>
+      <div class="fmt-chip" data-fmt="CODE39">CODE 39</div>
+    </div>
+
+    <div class="gen-error" id="genError"></div>
+
+    <div class="label-stock" id="labelStock">
+      <canvas id="barcodeCanvas"></canvas>
+      <div class="label-caption" id="labelCaption"></div>
+    </div>
+    <button class="btn yellow" id="downloadBtn" style="display:none;">Als PNG herunterladen</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ---------- Uhr im Header (rein atmosphärisch) ----------
+function tick(){
+  const d=new Date();
+  document.getElementById('clock').textContent = d.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'});
+}
+tick(); setInterval(tick,15000);
+
+// ---------- Toast ----------
+function toast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg;
+  t.classList.add('show');
+  clearTimeout(t._h);
+  t._h=setTimeout(()=>t.classList.remove('show'),1800);
+}
+
+// ---------- Tabs ----------
+const tabs=document.querySelectorAll('.tab');
+const panels={scan:document.getElementById('panel-scan'),create:document.getElementById('panel-create')};
+tabs.forEach(tab=>{
+  tab.addEventListener('click',()=>{
+    tabs.forEach(t=>t.classList.remove('active'));
+    tab.classList.add('active');
+    Object.values(panels).forEach(p=>p.classList.remove('active'));
+    panels[tab.dataset.tab].classList.add('active');
+  });
+});
+
+// ---------- Scannen ----------
+let html5QrCode=null;
+let isScanning=false;
+const scanFrame=document.getElementById('scanFrame');
+const scanIdle=document.getElementById('scanIdle');
+const camToggle=document.getElementById('camToggle');
+const camError=document.getElementById('camError');
+const scanTicket=document.getElementById('scanTicket');
+const scanValue=document.getElementById('scanValue');
+const scanFormat=document.getElementById('scanFormat');
+const histList=document.getElementById('histList');
+let history=[];
+
+const formatMap={
+  0:'CODE_128',1:'CODE_39',2:'CODE_93',3:'CODABAR',4:'EAN_13',5:'EAN_8',
+  6:'ITF',7:'UPC_A',8:'UPC_E',9:'QR_CODE',10:'DATA_MATRIX',11:'AZTEC',12:'PDF_417'
+};
+
+function renderHistory(){
+  if(history.length===0){
+    histList.innerHTML='<div class="empty-hist">Noch keine Scans in dieser Sitzung.</div>';
+    return;
+  }
+  histList.innerHTML='';
+  history.slice(0,8).forEach((h,i)=>{
+    const row=document.createElement('div');
+    row.className='hist-item';
+    row.innerHTML=`<span class="val">${h.value}</span><button data-i="${i}">Kopieren</button>`;
+    row.querySelector('button').addEventListener('click',()=>{
+      navigator.clipboard.writeText(h.value).then(()=>toast('Kopiert'));
+    });
+    histList.appendChild(row);
+  });
+}
+
+async function startScan(){
+  camError.style.display='none';
+  scanIdle.style.display='none';
+  try{
+    html5QrCode = new Html5Qrcode("reader");
+    await html5QrCode.start(
+      { facingMode: "environment" },
+      { fps: 12, qrbox: { width: 260, height: 140 } },
+      (decodedText, decodedResult) => {
+        const fmt = decodedResult && decodedResult.result && decodedResult.result.format
+          ? decodedResult.result.format.format
+          : (decodedResult && decodedResult.result && decodedResult.result.formatName);
+        onDecoded(decodedText, fmt);
+      },
+      () => { /* per-frame miss, ignorieren */ }
+    );
+    isScanning=true;
+    scanFrame.classList.add('live');
+    camToggle.textContent='Kamera stoppen';
+  }catch(err){
+    scanIdle.style.display='flex';
+    camError.style.display='block';
+    camError.textContent='Kamera nicht verfügbar: '+(err && err.message ? err.message : err)+'. Bitte Kamerazugriff erlauben.';
+  }
+}
+
+async function stopScan(){
+  if(html5QrCode && isScanning){
+    try{ await html5QrCode.stop(); html5QrCode.clear(); }catch(e){}
+  }
+  isScanning=false;
+  scanFrame.classList.remove('live');
+  scanIdle.style.display='flex';
+  camToggle.textContent='Kamera starten';
+}
+
+let lastDecoded='';
+let lastDecodedAt=0;
+function onDecoded(value, fmt){
+  const now=Date.now();
+  if(value===lastDecoded && now-lastDecodedAt<2500) return; // Dopplungen unterdrücken
+  lastDecoded=value; lastDecodedAt=now;
+
+  scanValue.textContent=value;
+  scanFormat.textContent=fmt?('Format: '+fmt.replace(/_/g,' ')):'';
+  scanTicket.classList.add('show');
+  history.unshift({value, fmt});
+  renderHistory();
+  if(navigator.vibrate) navigator.vibrate(60);
+  toast('Barcode erkannt');
+}
+
+camToggle.addEventListener('click',()=>{
+  if(isScanning) stopScan(); else startScan();
+});
+
+document.getElementById('copyScan').addEventListener('click',()=>{
+  const v=scanValue.textContent;
+  if(v && v!=='—') navigator.clipboard.writeText(v).then(()=>toast('Kopiert'));
+});
+
+document.getElementById('toCreate').addEventListener('click',()=>{
+  const v=scanValue.textContent;
+  if(!v || v==='—') return;
+  document.getElementById('numInput').value=v;
+  tabs.forEach(t=>t.classList.remove('active'));
+  document.querySelector('.tab[data-tab="create"]').classList.add('active');
+  Object.values(panels).forEach(p=>p.classList.remove('active'));
+  panels.create.classList.add('active');
+  generateBarcode();
+});
+
+// ---------- Erstellen ----------
+const numInput=document.getElementById('numInput');
+const fmtRow=document.getElementById('fmtRow');
+const genError=document.getElementById('genError');
+const labelStock=document.getElementById('labelStock');
+const labelCaption=document.getElementById('labelCaption');
+const downloadBtn=document.getElementById('downloadBtn');
+let currentFmt='CODE128';
+
+fmtRow.addEventListener('click',(e)=>{
+  const chip=e.target.closest('.fmt-chip');
+  if(!chip) return;
+  fmtRow.querySelectorAll('.fmt-chip').forEach(c=>c.classList.remove('active'));
+  chip.classList.add('active');
+  currentFmt=chip.dataset.fmt;
+  generateBarcode();
+});
+
+numInput.addEventListener('input',()=>{ generateBarcode(); });
+
+function generateBarcode(){
+  const val=numInput.value.trim();
+  genError.style.display='none';
+  if(!val){
+    labelStock.classList.remove('show');
+    downloadBtn.style.display='none';
+    return;
+  }
+  try{
+    JsBarcode("#barcodeCanvas", val, {
+      format: currentFmt,
+      lineColor: "#1B1B18",
+      background: "#ffffff",
+      width: 2.4,
+      height: 90,
+      fontOptions: "600",
+      font: "IBM Plex Mono",
+      fontSize: 16,
+      textMargin: 6,
+      margin: 10
+    });
+    labelStock.classList.add('show');
+    labelCaption.textContent=currentFmt+' — bereit zum Scannen oder Drucken';
+    downloadBtn.style.display='block';
+  }catch(err){
+    labelStock.classList.remove('show');
+    downloadBtn.style.display='none';
+    genError.style.display='block';
+    genError.textContent=err && err.message ? err.message : 'Diese Nummer passt nicht zu diesem Format.';
+  }
+}
+
+downloadBtn.addEventListener('click',()=>{
+  const canvas=document.getElementById('barcodeCanvas');
+  const link=document.createElement('a');
+  link.download='barcode-'+(numInput.value.trim()||'export')+'.png';
+  link.href=canvas.toDataURL('image/png');
+  link.click();
+});
+
+// Beispiel vorbelegen
+numInput.value='4006381333931';
+generateBarcode();
+
+// ---------- PWA: Service Worker registrieren ----------
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('service-worker.js').catch(() => {});
+  });
+}
+</script>
+</body>
+</html>
